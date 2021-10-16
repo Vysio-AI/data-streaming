@@ -3,12 +3,12 @@ from enum import Enum
 
 from pyspark.sql import SparkSession
 from pyspark.sql.types import *
-from pyspark.sql.functions import from_json, col, window, collect_list
+from pyspark.sql.functions import from_json, col, window, collect_list, rand, round
 
 
 class KafkaTopic(Enum):
     WATCH = "watch"
-    WINDOWED_WATCH = "windowed_watch"
+    CLASSIFICATIONS = "classifications"
 
 
 schema = StructType([
@@ -50,11 +50,13 @@ df = spark \
         collect_list("w_x").alias("w_x"),
         collect_list("w_y").alias("w_y"),
         collect_list("w_z").alias("w_z")) \
+    .withColumn("classification", round(rand()*6)) \
+    .select("user_id", "window", "classification") \
     .selectExpr("user_id AS key", "CAST(to_json(struct(*)) AS STRING) AS value") \
     .writeStream \
     .format("kafka") \
     .option("kafka.bootstrap.servers", f"{kafka_host}:{kafka_port}") \
-    .option("topic", KafkaTopic.WINDOWED_WATCH.value) \
+    .option("topic", KafkaTopic.CLASSIFICATIONS.value) \
     .option("checkpointLocation", "./checkpoint") \
     .start() \
     .awaitTermination()
